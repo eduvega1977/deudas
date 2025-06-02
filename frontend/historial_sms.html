@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial de SMS</title>
+    <link rel="icon" href="logo.png">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .filtros {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .filtros input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        .top-buttons {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Historial de SMS Enviados</h1>
+
+    <div class="top-buttons">
+        <button class="btn" onclick="window.location.href='admin.html'">Volver al Admin</button>
+        <button class="btn" onclick="exportar()">Exportar Excel</button>
+    </div>
+
+    <div class="filtros">
+        <input type="text" id="filtroDNI" placeholder="Filtrar por DNI" oninput="filtrar()">
+        <input type="text" id="filtroNombre" placeholder="Filtrar por Nombre" oninput="filtrar()">
+        <input type="text" id="filtroEntidad" placeholder="Filtrar por Entidad" oninput="filtrar()">
+        <input type="text" id="filtroTelefono" placeholder="Filtrar por Teléfono" oninput="filtrar()">
+    </div>
+
+    <table id="tabla">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>DNI</th>
+                <th>Nombre</th>
+                <th>Entidad</th>
+                <th>Mensaje SMS</th>
+                <th>Teléfono</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        let datosSMS = [];
+
+        async function cargarDatos() {
+            const res = await fetch('http://127.0.0.1:5000/historial_sms');
+            const datos = await res.json();
+            datosSMS = datos;
+            mostrarTabla(datosSMS);
+        }
+
+        function mostrarTabla(datos) {
+            const tbody = document.querySelector('#tabla tbody');
+            tbody.innerHTML = '';
+            datos.forEach(d => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${d.Fecha || ''}</td>
+                    <td>${d.Hora || ''}</td>
+                    <td>${d.DNI || ''}</td>
+                    <td>${d.Nombre || ''}</td>
+                    <td>${d.Entidad || ''}</td>
+                    <td>${d.Mensaje || ''}</td>
+                    <td>${d.Telefono || ''}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filtrar() {
+            const dni = document.getElementById('filtroDNI').value.toLowerCase();
+            const nombre = document.getElementById('filtroNombre').value.toLowerCase();
+            const entidad = document.getElementById('filtroEntidad').value.toLowerCase();
+            const telefono = document.getElementById('filtroTelefono').value.toLowerCase();
+
+            const filtrado = datosSMS.filter(d =>
+                (d.DNI || '').toLowerCase().includes(dni) &&
+                (d.Nombre || '').toLowerCase().includes(nombre) &&
+                (d.Entidad || '').toLowerCase().includes(entidad) &&
+                (d.Telefono || '').toLowerCase().includes(telefono)
+            );
+
+            mostrarTabla(filtrado);
+        }
+
+        async function exportar() {
+            const filas = Array.from(document.querySelectorAll('#tabla tbody tr'));
+            const registros = filas.map(fila => {
+                const celdas = fila.querySelectorAll('td');
+                return {
+                    Fecha: celdas[0].innerText,
+                    Hora: celdas[1].innerText,
+                    DNI: celdas[2].innerText,
+                    Nombre: celdas[3].innerText,
+                    Entidad: celdas[4].innerText,
+                    Mensaje: celdas[5].innerText,
+                    Telefono: celdas[6].innerText
+                };
+            });
+
+            const res = await fetch('http://127.0.0.1:5000/exportar_sms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ registros })
+            });
+
+            const data = await res.json();
+            window.location.href = `http://127.0.0.1:5000/descargar/${data.archivo}`;
+        }
+
+        cargarDatos();
+    </script>
+
+</body>
+</html>

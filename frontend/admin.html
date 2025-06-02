@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Admin - Gestión de Ofertas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        .nav-tabs button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #ddd;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .nav-tabs button.active {
+            background-color: #333;
+            color: white;
+        }
+
+        .filtros {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        select {
+            padding: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #333;
+            color: white;
+        }
+        .estado-pendiente {
+            background-color: #ffcccc;
+            color: #a00;
+            font-weight: bold;
+        }
+        .estado-pagado {
+            background-color: #ccffcc;
+            color: #070;
+            font-weight: bold;
+        }
+        .boton {
+            padding: 5px 10px;
+            margin: 2px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+        }
+        .boton-pagado {
+            background-color: #4CAF50;
+        }
+        .boton-pendiente {
+            background-color: #f44336;
+        }
+        .boton-aceptar {
+            background-color: #4CAF50;
+        }
+        .boton-no-aceptar {
+            background-color: #f44336;
+        }
+        .boton-exportar {
+            background-color: #2196F3;
+        }
+        .notificacion-sms {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 1000;
+        }
+
+        .seccion {
+            display: none;
+        }
+        .seccion.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Gestión de Ofertas</h1>
+
+    <div class="nav-tabs">
+        <button id="tabAdmin" class="active" onclick="mostrarSeccion('admin')">Panel de Administración</button>
+        <button id="tabHistorial" onclick="mostrarSeccion('historial')">Historial SMS</button>
+    </div>
+
+    <!-- Panel de Administración -->
+    <div id="seccionAdmin" class="seccion active">
+        <div class="filtros">
+            <label>
+                Filtrar por Acción:
+                <select id="filtroAccion">
+                    <option value="">Todas</option>
+                    <option value="Consulta">Consulta</option>
+                    <option value="Oferta Enviada">Oferta Enviada</option>
+                    <option value="Aceptó">Aceptó</option>
+                    <option value="No Aceptó">No Aceptó</option>
+                </select>
+            </label>
+
+            <label>
+                Filtrar por Estado de Pago:
+                <select id="filtroEstado">
+                    <option value="">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Pagado">Pagado</option>
+                </select>
+            </label>
+
+            <label>
+                Filtrar por Entidad:
+                <select id="filtroEntidad">
+                    <option value="">Todas</option>
+                </select>
+            </label>
+
+            <button class="boton boton-exportar" onclick="exportarDatos()">Exportar Excel</button>
+        </div>
+
+        <table id="tablaDatos">
+            <thead>
+                <tr>
+                    <th>DNI</th>
+                    <th>Nombre</th>
+                    <th>Entidad</th>
+                    <th>Deuda Total</th>
+                    <th>Monto Cancelación</th>
+                    <th>Oferta Mostrada</th>
+                    <th>Acción</th>
+                    <th>Monto Ofertado</th>
+                    <th>Fecha y Hora</th>
+                    <th>Estado Pago</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- Historial SMS -->
+    <div id="seccionHistorial" class="seccion">
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha y Hora</th>
+                    <th>DNI</th>
+                    <th>Nombre</th>
+                    <th>Entidad</th>
+                    <th>Mensaje SMS</th>
+                </tr>
+            </thead>
+            <tbody id="tablaHistorialSMS"></tbody>
+        </table>
+    </div>
+
+    <div class="notificacion-sms" id="notificacionSMS"></div>
+
+<script>
+    let datosGlobales = [];
+    const historialSMS = [];
+
+    async function cargarDatos() {
+        const resp = await fetch('http://localhost:5000/obtener_datos');
+        const datos = await resp.json();
+        datosGlobales = datos;
+        actualizarOpcionesEntidad();
+        renderizarTabla();
+    }
+
+    function actualizarOpcionesEntidad() {
+        const selectEntidad = document.getElementById('filtroEntidad');
+        const entidades = [...new Set(datosGlobales.map(d => d['Entidad']).filter(e => e))];
+        selectEntidad.innerHTML = '<option value="">Todas</option>';
+        entidades.forEach(entidad => {
+            const option = document.createElement('option');
+            option.value = entidad;
+            option.textContent = entidad;
+            selectEntidad.appendChild(option);
+        });
+    }
+
+    function renderizarTabla() {
+        const tbody = document.querySelector('#tablaDatos tbody');
+        tbody.innerHTML = '';
+
+        const accionFiltro = document.getElementById('filtroAccion').value;
+        const estadoFiltro = document.getElementById('filtroEstado').value;
+        const entidadFiltro = document.getElementById('filtroEntidad').value;
+
+        const datosFiltrados = datosGlobales.filter(d => {
+            const coincideEstado = !estadoFiltro || d['Estado Pago'] === estadoFiltro;
+            const coincideEntidad = !entidadFiltro || d['Entidad'] === entidadFiltro;
+
+            if (accionFiltro === 'Consulta') {
+                const tieneOferta = datosGlobales.some(otro => 
+                    otro['DNI'] === d['DNI'] && 
+                    (otro['Acción'] === 'Aceptó' || otro['Acción'] === 'No Aceptó')
+                );
+                return d['Acción'] === 'Consulta' && !tieneOferta &&
+                       coincideEstado && coincideEntidad;
+            }
+
+            const coincideAccion = !accionFiltro || d['Acción'] === accionFiltro;
+            return coincideAccion && coincideEstado && coincideEntidad;
+        });
+
+        datosFiltrados.forEach(dato => {
+            const tr = document.createElement('tr');
+
+            const claseEstado = dato['Estado Pago'] === 'Pendiente' ? 'estado-pendiente' :
+                                dato['Estado Pago'] === 'Pagado' ? 'estado-pagado' : '';
+
+            tr.innerHTML = `
+                <td>${dato['DNI']}</td>
+                <td>${dato['Nombre']}</td>
+                <td>${dato['Entidad']}</td>
+                <td>${dato['Deuda Total']}</td>
+                <td>${dato['Monto Cancelación']}</td>
+                <td>${dato['Oferta Mostrada Cliente']}</td>
+                <td>${dato['Acción']}</td>
+                <td>${dato['Monto Ofertado']}</td>
+                <td>${dato['Fecha y Hora']}</td>
+                <td class="${claseEstado}">${dato['Estado Pago'] || ''}</td>
+                <td>${generarBotones(dato)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function generarBotones(dato) {
+        const dni = dato['DNI'];
+        const fecha_hora = dato['Fecha y Hora'];
+        const accion = dato['Acción'];
+
+        if (accion === 'Oferta Enviada') {
+            return `
+                <button class="boton boton-aceptar" onclick="cambiarAccion('${dni}', '${fecha_hora}', 'Aceptó')">Aceptar</button>
+                <button class="boton boton-no-aceptar" onclick="cambiarAccion('${dni}', '${fecha_hora}', 'No Aceptó')">No Aceptar</button>
+            `;
+        } else if (accion === 'Aceptó') {
+            return `
+                <button class="boton boton-pagado" onclick="cambiarEstado('${dni}', '${fecha_hora}', 'Pagado')">Pagado</button>
+                <button class="boton boton-pendiente" onclick="cambiarEstado('${dni}', '${fecha_hora}', 'Pendiente')">Pendiente</button>
+            `;
+        } else {
+            return '';
+        }
+    }
+
+    async function cambiarAccion(dni, fecha_hora, nuevaAccion) {
+        const dato = datosGlobales.find(d => d['DNI'] === dni && d['Fecha y Hora'] === fecha_hora);
+        const resp = await fetch('http://localhost:5000/accion_oferta', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({dni, fecha_hora, accion: nuevaAccion})
+        });
+
+        if (resp.ok) {
+            mostrarSMS(dato, nuevaAccion, null);
+            cargarDatos();
+        } else {
+            alert('❌ Error al actualizar la acción');
+        }
+    }
+
+    async function cambiarEstado(dni, fecha_hora, nuevoEstado) {
+        const dato = datosGlobales.find(d => d['DNI'] === dni && d['Fecha y Hora'] === fecha_hora);
+        const resp = await fetch('http://localhost:5000/cambiar_estado_pago', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({dni, fecha_hora, estado_pago: nuevoEstado})
+        });
+
+        if (resp.ok) {
+            mostrarSMS(dato, null, nuevoEstado);
+            cargarDatos();
+        } else {
+            alert('❌ Error al actualizar el estado');
+        }
+    }
+
+    function mostrarSMS(dato, accion, estado) {
+        let mensaje = '';
+        const nombre = dato['Nombre'];
+        const entidad = dato['Entidad'];
+        const monto = dato['Monto Ofertado'];
+        const fecha = new Date().toLocaleString();
+
+        if (accion === 'Aceptó') {
+            mensaje = `📲 Hola ${nombre}, su oferta fue aceptada. Puede cancelar su deuda con ${entidad} por $${monto}. Entra a WWW.XXX para informaciones.`;
+        } else if (accion === 'No Aceptó') {
+            mensaje = `📲 Hola ${nombre}, gracias por su consulta. Tenemos una nueva oferta, ingresa a www.xxx.com.`;
+        } else if (estado === 'Pagado') {
+            mensaje = `📲 Hola ${nombre}, hemos recibido su pago exitosamente. ¡Gracias por cancelar su deuda con ${entidad}! Estamos gestionando tu carta de NO ADEUDO.`;
+        } else if (estado === 'Pendiente') {
+            mensaje = `📲 Hola ${nombre}, le recordamos que su pago está pendiente. Puede cancelar su deuda con ${entidad} por $${monto} y recupera tu libertad financiera.`;
+        }
+
+        const noti = document.getElementById('notificacionSMS');
+        noti.textContent = mensaje;
+        noti.style.display = 'block';
+
+        historialSMS.push({
+            fecha,
+            dni: dato['DNI'],
+            nombre: nombre,
+            entidad: entidad,
+            mensaje: mensaje
+        });
+
+        renderizarHistorialSMS();
+
+        setTimeout(() => {
+            noti.style.display = 'none';
+        }, 5000);
+    }
+
+    function renderizarHistorialSMS() {
+        const tbody = document.getElementById('tablaHistorialSMS');
+        tbody.innerHTML = '';
+        historialSMS.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.fecha}</td>
+                <td>${item.dni}</td>
+                <td>${item.nombre}</td>
+                <td>${item.entidad}</td>
+                <td>${item.mensaje}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportarDatos() {
+        const accionFiltro = document.getElementById('filtroAccion').value;
+        const estadoFiltro = document.getElementById('filtroEstado').value;
+        const entidadFiltro = document.getElementById('filtroEntidad').value;
+
+        const datosFiltrados = datosGlobales.filter(d => {
+            const coincideEstado = !estadoFiltro || d['Estado Pago'] === estadoFiltro;
+            const coincideEntidad = !entidadFiltro || d['Entidad'] === entidadFiltro;
+
+            if (accionFiltro === 'Consulta') {
+                const tieneOferta = datosGlobales.some(otro => 
+                    otro['DNI'] === d['DNI'] && 
+                    (otro['Acción'] === 'Aceptó' || otro['Acción'] === 'No Aceptó')
+                );
+                return d['Acción'] === 'Consulta' && !tieneOferta &&
+                       coincideEstado && coincideEntidad;
+            }
+
+            const coincideAccion = !accionFiltro || d['Acción'] === accionFiltro;
+            return coincideAccion && coincideEstado && coincideEntidad;
+        });
+
+        fetch('http://localhost:5000/exportar_datos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({registros: datosFiltrados})
+        })
+        .then(res => res.json())
+        .then(data => {
+            const url = `http://localhost:5000/descargar/${data.archivo}`;
+            window.open(url, '_blank');
+        });
+    }
+
+    function mostrarSeccion(seccion) {
+        document.getElementById('seccionAdmin').classList.remove('active');
+        document.getElementById('seccionHistorial').classList.remove('active');
+        document.getElementById('tabAdmin').classList.remove('active');
+        document.getElementById('tabHistorial').classList.remove('active');
+
+        if (seccion === 'admin') {
+            document.getElementById('seccionAdmin').classList.add('active');
+            document.getElementById('tabAdmin').classList.add('active');
+        } else {
+            document.getElementById('seccionHistorial').classList.add('active');
+            document.getElementById('tabHistorial').classList.add('active');
+        }
+    }
+
+    document.getElementById('filtroAccion').addEventListener('change', renderizarTabla);
+    document.getElementById('filtroEstado').addEventListener('change', renderizarTabla);
+    document.getElementById('filtroEntidad').addEventListener('change', renderizarTabla);
+
+    cargarDatos();
+</script>
+</body>
+</html>

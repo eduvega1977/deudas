@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta de Oferta</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        img {
+            width: 120px;
+            margin-bottom: 20px;
+        }
+        input {
+            padding: 10px;
+            width: 60%;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #0077c2;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #005fa3;
+        }
+        .hidden {
+            display: none;
+        }
+        .info {
+            text-align: left;
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="logo.png" alt="Logo">
+
+        <div id="busqueda">
+            <h2>Consulta tu Oferta</h2>
+            <input type="text" id="dniInput" placeholder="Ingrese su DNI"><br>
+            <button onclick="buscarCliente()">Buscar</button>
+        </div>
+
+        <div id="resultado" class="hidden">
+            <h2>Datos del Cliente</h2>
+            <div class="info">
+                <p><strong>DNI:</strong> <span id="dni"></span></p>
+                <p><strong>Nombre:</strong> <span id="nombre"></span></p>
+                <p><strong>Entidad Financiera:</strong> <span id="entidad"></span></p>
+                <p><strong>Deuda Total:</strong> S/ <span id="deuda"></span></p>
+                <p><strong>Oferta de Cancelación:</strong> S/ <span id="oferta"></span></p>
+            </div>
+            <p>¿Acepta la oferta?</p>
+            <button onclick="aceptarOferta()">Aceptar</button>
+            <button onclick="mostrarOferta()">No Acepto</button>
+        </div>
+
+        <div id="ofertaPersonalizada" class="hidden">
+            <h2>Ingrese su propuesta</h2>
+            <input type="number" id="ofertaInput" placeholder="Monto en S/"><br>
+            <button onclick="enviarOferta()">Enviar Oferta</button>
+        </div>
+
+        <div id="mensaje" class="hidden">
+            <p id="mensajeTexto"></p>
+            <button onclick="volverInicio()">Volver al Inicio</button>
+        </div>
+    </div>
+
+    <script>
+        let clienteActual = {};
+
+        async function buscarCliente() {
+            const dni = document.getElementById('dniInput').value.trim();
+            if (!dni) {
+                alert('Por favor, ingrese el DNI');
+                return;
+            }
+
+            try {
+                const resp = await fetch('http://127.0.0.1:5000/buscar_cliente', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({dni})
+                });
+
+                if (!resp.ok) {
+                    alert('Cliente no encontrado');
+                    return;
+                }
+
+                const data = await resp.json();
+                clienteActual = data;
+
+                document.getElementById('dni').innerText = data.dni;
+                document.getElementById('nombre').innerText = data.nombre;
+                document.getElementById('entidad').innerText = data.entidad_financiera;
+                document.getElementById('deuda').innerText = data.deuda;
+                document.getElementById('oferta').innerText = data.oferta_cancelacion;
+
+                document.getElementById('busqueda').classList.add('hidden');
+                document.getElementById('resultado').classList.remove('hidden');
+            } catch (error) {
+                alert('Error al buscar cliente');
+                console.error(error);
+            }
+        }
+
+        function aceptarOferta() {
+            guardarOferta(clienteActual.oferta_cancelacion, true);
+            mostrarMensajePago(clienteActual.oferta_cancelacion);
+        }
+
+        function mostrarOferta() {
+            document.getElementById('resultado').classList.add('hidden');
+            document.getElementById('ofertaPersonalizada').classList.remove('hidden');
+        }
+
+        async function enviarOferta() {
+            const oferta = parseFloat(document.getElementById('ofertaInput').value);
+            if (isNaN(oferta) || oferta <= 0) {
+                alert('Ingrese un monto válido');
+                return;
+            }
+
+            const montoCancelacion = clienteActual.monto_cancelacion;
+
+            if (oferta >= montoCancelacion) {
+                await guardarOferta(oferta, true);
+                mostrarMensajePago(oferta);
+            } else {
+                await guardarOferta(oferta, false);
+                document.getElementById('ofertaPersonalizada').classList.add('hidden');
+                document.getElementById('mensaje').classList.remove('hidden');
+                document.getElementById('mensajeTexto').innerText = 'Gracias. Su propuesta será analizada y nos pondremos en contacto.';
+            }
+        }
+
+        async function guardarOferta(oferta, acepto) {
+            try {
+                await fetch('http://127.0.0.1:5000/guardar_oferta', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        dni: clienteActual.dni,
+                        oferta: oferta,
+                        acepto: acepto
+                    })
+                });
+            } catch (error) {
+                console.error('Error al guardar oferta', error);
+            }
+        }
+
+        function mostrarMensajePago(monto) {
+            const mensaje = `
+            Perfecto. Puede realizar el pago con los siguientes datos:\n\n
+Banco BCP\n
+Cuenta Corriente Soles: 19197763870081\n
+Enviar el comprobante al WhatsApp: +51 959 973 442\n
+o al email: gerencia@zangtel.com\n\n
+Monto a pagar: S/ ${monto}\n\n
+Confirmando el depósito, estaremos enviando su Carta de NO ADEUDO.
+            `;
+
+            document.getElementById('resultado').classList.add('hidden');
+            document.getElementById('ofertaPersonalizada').classList.add('hidden');
+            document.getElementById('mensaje').classList.remove('hidden');
+            document.getElementById('mensajeTexto').innerText = mensaje;
+        }
+
+        function volverInicio() {
+            document.getElementById('busqueda').classList.remove('hidden');
+            document.getElementById('resultado').classList.add('hidden');
+            document.getElementById('ofertaPersonalizada').classList.add('hidden');
+            document.getElementById('mensaje').classList.add('hidden');
+            document.getElementById('dniInput').value = '';
+            document.getElementById('ofertaInput').value = '';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Administrador de Ofertas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f7f7f7;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .controls div {
+            margin: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #004c99;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        button {
+            padding: 6px 12px;
+            background-color: #004c99;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #003366;
+        }
+        input, select {
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Panel Administrador</h1>
+
+    <div class="controls">
+        <div>
+            <label for="filtroAccion">Filtrar por acción:</label>
+            <select id="filtroAccion" onchange="filtrarDatos()">
+                <option value="">Todos</option>
+                <option value="Consulta">Consulta</option>
+                <option value="Oferta Enviada">Oferta Enviada</option>
+                <option value="Aceptó">Aceptó</option>
+                <option value="Pagado">Pagado</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="buscarTexto">Buscar DNI o Nombre:</label>
+            <input type="text" id="buscarTexto" placeholder="DNI o Nombre" oninput="filtrarDatos()">
+        </div>
+
+        <div>
+            <button onclick="window.location.href='/'">Volver a Inicio</button>
+        </div>
+    </div>
+
+    <table id="tablaDatos">
+        <thead>
+            <tr>
+                <th>DNI</th>
+                <th>Nombre</th>
+                <th>Entidad</th>
+                <th>Deuda Total</th>
+                <th>Monto Cancelación</th>
+                <th>Oferta Mostrada</th>
+                <th>Acción</th>
+                <th>Oferta Cliente</th>
+                <th>Fecha y Hora</th>
+                <th>Marcar Pagado</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        let datos = [];
+
+        async function cargarDatos() {
+            try {
+                const respuesta = await fetch('/obtener_datos');
+                if (!respuesta.ok) throw new Error('Error en la petición');
+                datos = await respuesta.json();
+                mostrarDatos(datos);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar datos del servidor.');
+            }
+        }
+
+        function mostrarDatos(data) {
+            const tbody = document.querySelector('#tablaDatos tbody');
+            tbody.innerHTML = '';
+
+            data.forEach(item => {
+                const fila = document.createElement('tr');
+
+                fila.innerHTML = `
+                    <td>${item.DNI}</td>
+                    <td>${item.Nombre}</td>
+                    <td>${item.Entidad}</td>
+                    <td>${item["Deuda Total"]}</td>
+                    <td>${item["Monto Cancelación"]}</td>
+                    <td>${item["Oferta Mostrada Cliente"]}</td>
+                    <td>${item["Acción"]}</td>
+                    <td>${item["Monto Ofertado"] ?? ''}</td>
+                    <td>${item["Fecha y Hora"]}</td>
+                    <td>
+                        ${item["Acción"] === 'Pagado' ? '✔️' : `<button onclick="marcarPagado('${item.DNI}', '${item.Nombre}', '${item.Entidad}')">Pagado</button>`}
+                    </td>
+                `;
+                tbody.appendChild(fila);
+            });
+        }
+
+        function filtrarDatos() {
+            const accion = document.getElementById('filtroAccion').value.toLowerCase();
+            const texto = document.getElementById('buscarTexto').value.toLowerCase();
+
+            const filtrados = datos.filter(item => {
+                const coincideAccion = !accion || item["Acción"].toLowerCase() === accion;
+                const coincideTexto = !texto || item.DNI.toString().includes(texto) || item.Nombre.toLowerCase().includes(texto);
+                return coincideAccion && coincideTexto;
+            });
+
+            mostrarDatos(filtrados);
+        }
+
+        async function marcarPagado(dni, nombre, entidad) {
+            const confirmar = confirm(`¿Confirmas que ${nombre} (DNI: ${dni}) ha pagado?`);
+            if (!confirmar) return;
+
+            try {
+                const respuesta = await fetch('/marcar_pagado', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dni, nombre, entidad })
+                });
+
+                const resultado = await respuesta.json();
+                if (resultado.status === 'ok') {
+                    alert('Marcado como Pagado.');
+                    cargarDatos();
+                } else {
+                    alert('Error al marcar como pagado.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error en la comunicación con el servidor.');
+            }
+        }
+
+        cargarDatos();
+    </script>
+</body>
+</html>
